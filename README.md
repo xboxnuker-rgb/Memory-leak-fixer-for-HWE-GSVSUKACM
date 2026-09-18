@@ -2,6 +2,10 @@
 
 A targeted MelonLoader mod for Schedule I that prevents runtime weed materials used by storage-item visuals from accumulating after those visuals are destroyed.
 
+## Download
+
+[Download StorageMaterialLeakFix v1.0.0](releases/StorageMaterialLeakFix-v1.0.0.zip)
+
 The patch was created after repeated crashes in Schedule I `0.4.6f13` reached approximately 41–42 GiB of committed memory. Symbol-resolved dumps showed the allocation path running through:
 
 ```text
@@ -93,4 +97,3 @@ The output is written under `dist`.
 ## Limitations
 
 This is a targeted workaround based on two matching native crash dumps. It addresses the identified material-lifetime path, but long-session testing is still required to verify that no second independent allocation leak exists.
-
