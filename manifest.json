@@ -1,0 +1,10 @@
+{
+  "name": "StorageMaterialLeakFix",
+  "version_number": "1.0.0",
+  "website_url": "https://github.com/xboxnuker-rgb/Memory-leak-fixer-for-HWE-GSVSUKACM",
+  "description": "Releases leaked runtime weed materials created by Schedule I storage visual refreshes.",
+  "dependencies": [
+    "LavaGang-MelonLoader-0.7.0"
+  ]
+}
+
