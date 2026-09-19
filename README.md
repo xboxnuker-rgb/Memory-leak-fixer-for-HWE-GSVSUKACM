@@ -1,99 +1,143 @@
 # Storage Material Leak Fix
 
-A targeted MelonLoader mod for Schedule I that prevents runtime weed materials used by storage-item visuals from accumulating after those visuals are destroyed.
+A focused Schedule I stability patch that stops live weed-storage visuals from creating disposable Unity material instances on every refresh.
 
-## Download
+[![Schedule I](https://img.shields.io/badge/Schedule_I-0.4.6f13-8a2be2?style=for-the-badge)](https://store.steampowered.com/app/3164500/Schedule_I/)
+[![Backend](https://img.shields.io/badge/backend-IL2CPP-222222?style=for-the-badge)](#requirements-and-compatibility)
+[![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.0-00b894?style=for-the-badge)](https://melonwiki.xyz/)
+[![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](LICENSE)
+[![Support on Patreon](https://img.shields.io/badge/Support_on-Patreon-FF424D?style=for-the-badge&logo=patreon&logoColor=white)](https://www.patreon.com/cw/GSVS_UK_ACM/shop)
 
-[Download StorageMaterialLeakFix v1.0.0](releases/StorageMaterialLeakFix-v1.0.0.zip)
+> **Release status:** v1.1.1 is completing its heavy-save soak test. The installable release will be linked here after the full lifecycle test passes. Do not use the experimental 1.0.x or 1.1.0 builds.
 
-The patch was created after repeated crashes in Schedule I `0.4.6f13` reached approximately 41–42 GiB of committed memory. Symbol-resolved dumps showed the allocation path running through:
+## The problem
+
+Long automated sessions can end in a hard desktop crash with no useful managed exception. Reproduced failures reached approximately **41–42 GiB of committed memory** before `UnityPlayer.dll` failed inside its dynamic heap allocator.
+
+Symbol-resolved native dumps and recovered IL2CPP method bodies identified this path:
 
 ```text
 StorageVisualizer.RefreshVisuals
 → WeedVisualsSetter.ApplyVisuals
-→ Renderer.materials
+→ Renderer.materials / Renderer.GetMaterials
 → Material::GetInstantiatedMaterial
 → DynamicHeapAllocator::CreateTLSFBlock
 ```
 
-## What the mod changes
+`Renderer.materials` is an instantiating Unity API. Schedule I retrieves those copies, replaces their references with the product-definition materials, and never releases the discarded instances. A busy shelf can repeat that process thousands of times.
 
-The mod observes `WeedVisualsSetter.ApplyVisuals` without replacing it. It:
+Harder Working Employees and similar automation mods make the issue appear sooner because they move more items, but the leaking render path belongs to the base game. This mod does not patch or require HWE.
 
-1. Reads each configured renderer's `sharedMaterials` before the game applies the product appearance. This read does not instantiate a new material.
-2. Reads the assigned references again after the game applies the appearance.
-3. Records only new materials that also carry Unity runtime-instance markers.
-4. Associates those materials with the owning `StoredItem`.
-5. Calls `UnityEngine.Object.Destroy()` on those exact instances when the stored-item visual is destroyed.
-6. Periodically catches orphaned owners destroyed through another Unity path.
+## What the fix changes
 
-Product colours and storage visuals remain enabled. Shared material assets are not destroyed.
+The patch replaces only `WeedVisualsSetter.ApplyVisuals(ProductDefinition)`:
+
+1. Read each renderer through the non-instantiating `sharedMaterials` API.
+2. Select the same weed materials through the game's `WeedDefinition.GetMaterial` logic.
+3. Assign those shared references and enable the same visuals container.
+4. Skip the original instantiating call.
+
+Everything else remains native game behavior. The mod does **not**:
+
+- suppress or delay storage refreshes;
+- alter shelf packing, capacity, stacks, workers or transit routes;
+- destroy materials or other Unity assets;
+- force garbage collection or `Resources.UnloadUnusedAssets()`;
+- disable the transparent/live storage display.
+
+## Test evidence
+
+| Check | v1.1.1 result |
+| --- | --- |
+| Save initialization | Loaded successfully; no `QueueRefresh` interception |
+| Heavy automated storage activity | More than 138,000 patched visual applications during the initial stress run |
+| Patch fallbacks | 0 |
+| Memory behavior | Stabilized around 12.6–13.0 GiB instead of climbing toward the 41–42 GiB crash point |
+| Product appearance | Live weed visuals retained; no material destruction |
+
+The test counters are diagnostic aggregates, logged at most once per minute. They do not perform cleanup work and are not written once activity stops.
+
+## Requirements and compatibility
+
+| Component | Supported target |
+| --- | --- |
+| Schedule I | `0.4.6f13`, main/default branch |
+| Unity | `2022.3.62f2` |
+| Backend | IL2CPP |
+| Mod loader | MelonLoader `0.7.0` Open-Beta, .NET 6 runtime |
+| Harder Working Employees | Compatible but not required |
+
+IL2CPP and Mono mod builds are not interchangeable. A future game update may change the affected method; use a release that explicitly names your installed game version.
 
 ## Installation
 
-Requirements:
+1. Close Schedule I completely.
+2. Install MelonLoader `0.7.0` Open-Beta if it is not already installed.
+3. Extract the release ZIP into the Schedule I installation directory. It already contains the `Mods` folder.
+4. Confirm this file exists:
 
-- Schedule I IL2CPP build
-- MelonLoader `0.7.0` using its .NET 6 runtime
+   ```text
+   Schedule I/Mods/StorageMaterialLeakFix.dll
+   ```
 
-Install either way:
+5. Start the game. MelonLoader should report **Storage Material Leak Fix v1.1.1**.
 
-- Copy `StorageMaterialLeakFix.dll` into the game's `Mods` directory, or
-- Extract the release ZIP into the Schedule I game directory; it already contains the `Mods` folder.
-
-The usual Steam path is:
+The usual Steam installation path is:
 
 ```text
 C:\Program Files (x86)\Steam\steamapps\common\Schedule I
 ```
 
-Restart the game after installation.
-
 ## Runtime verification
 
-The MelonLoader console/log should contain:
+The log should contain:
 
 ```text
-[Storage Material Leak Fix] Loaded targeted storage-material lifetime patch...
+[Storage Material Leak Fix] Loaded storage material leak fix for Schedule I 0.4.6f13.
+[Storage Material Leak Fix] Weed appearances use non-instantiating shared material assignment; storage refresh behavior is unchanged.
 ```
 
-While affected storage items are moving, it reports aggregate status at most once per minute:
+During affected storage activity, the aggregate line appears at most once per minute:
 
 ```text
-Material cleanup status: live tracked=..., captured=..., released=..., private memory=... GiB.
+Storage material fix: shared material applies=..., material fallbacks=0; private memory=... GiB.
 ```
 
-The important value is `released`. It should increase as storage representations are replaced. Process memory should eventually stabilise rather than climbing toward 40+ GiB.
+`shared material applies` should rise during weed-storage refreshes. `material fallbacks` should remain zero for normal weed visuals.
 
-## Compatibility and scope
+## Troubleshooting and bug reports
 
-- Designed against Schedule I `0.4.6f13` / Unity `2022.3.62f2`.
-- Intended to be compatible with Harder Working Employees and other automation mods.
-- Does not patch or depend on HWE itself.
-- Targets weed storage visuals only, matching the resolved crash stack.
-- Does not call `Resources.UnloadUnusedAssets()` or force garbage collection.
-- Does not disable storage visuals or replace product appearance logic.
+If the game fails to start or a save no longer loads, remove `StorageMaterialLeakFix.dll` and report the following:
 
-If a game update changes the affected classes or methods, MelonLoader will log a Harmony patch failure instead of silently modifying unrelated code.
+- exact Schedule I version and backend;
+- MelonLoader version;
+- mod list;
+- steps immediately before the issue;
+- `MelonLoader/Latest.log`;
+- Windows Application Error details if the game hard-crashed.
+
+Please use the [GitHub issue tracker](https://github.com/xboxnuker-rgb/Memory-leak-fixer-for-HWE-GSVSUKACM/issues). Do not upload saves or logs containing personal information publicly.
 
 ## Building
 
-With the matching game and a .NET 6 SDK installed:
+Use the reference assemblies generated by the exact Schedule I version being targeted. Do not commit game, Unity, MelonLoader or generated interop binaries.
 
 ```powershell
 .\scripts\build.ps1 `
   -MelonLoaderRoot "C:\Program Files (x86)\Steam\steamapps\common\Schedule I\MelonLoader"
-```
 
-To create the distributable ZIP:
-
-```powershell
 .\scripts\package.ps1 `
   -MelonLoaderRoot "C:\Program Files (x86)\Steam\steamapps\common\Schedule I\MelonLoader"
 ```
 
-The output is written under `dist`.
+The installable ZIP is written under the ignored `dist/` directory.
 
-## Limitations
+## Source, credits and disclosure
 
-This is a targeted workaround based on two matching native crash dumps. It addresses the identified material-lifetime path, but long-session testing is still required to verify that no second independent allocation leak exists.
+- Maintained by **GSVS UK ACM**.
+- Source and issue tracker: [xboxnuker-rgb/Memory-leak-fixer-for-HWE-GSVSUKACM](https://github.com/xboxnuker-rgb/Memory-leak-fixer-for-HWE-GSVSUKACM)
+- License: [MIT](LICENSE)
+- Technical crash report: [`docs/CRASH_REPORT.md`](docs/CRASH_REPORT.md)
+- Contributor guidance: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+
+Codex was used as an AI-assisted investigation, development and documentation tool. The work was human-directed, source-reviewed, compiled and tested in game. The mod contains no generated visual, audio or dialogue assets.

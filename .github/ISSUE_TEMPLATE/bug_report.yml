@@ -1,0 +1,76 @@
+name: Bug report
+description: Report a crash, visual problem, compatibility issue, or continuing memory rise.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please remove personal information before attaching logs. Do not upload crash dumps or saves publicly.
+  - type: input
+    id: game-version
+    attributes:
+      label: Schedule I version and backend
+      placeholder: 0.4.6f13, IL2CPP/main branch
+    validations:
+      required: true
+  - type: input
+    id: loader-version
+    attributes:
+      label: MelonLoader version
+      placeholder: 0.7.0 Open-Beta
+    validations:
+      required: true
+  - type: input
+    id: mod-version
+    attributes:
+      label: Storage Material Leak Fix version
+      placeholder: 1.1.1
+    validations:
+      required: true
+  - type: textarea
+    id: mods
+    attributes:
+      label: Other installed mods
+      description: Paste the mod list or the MelonLoader loaded-mod section.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Include what storage contained, what workers were doing, runtime, and whether the issue repeats.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: memory
+    attributes:
+      label: Memory and counter observations
+      description: Include private/committed memory over time and the latest Storage material fix counter line.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log excerpt or link
+      description: Include warnings/errors and several lines of context. Remove personal information first.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I confirmed there is only one StorageMaterialLeakFix DLL in the Mods folder.
+          required: true
+        - label: I removed personal information from anything attached publicly.
+          required: true

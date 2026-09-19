@@ -6,42 +6,28 @@ namespace StorageMaterialLeakFix
     public sealed class StorageMaterialLeakFixMod : MelonMod
     {
         public const string ModName = "Storage Material Leak Fix";
-        public const string Version = "1.0.0";
-        public const string ModDescription = "Releases runtime weed materials when Schedule I storage visuals are destroyed.";
+        public const string Version = "1.1.1";
+        public const string ModDescription = "Prevents leaking runtime materials when Schedule I refreshes weed storage visuals.";
 
-        private DateTime _nextSweepUtc;
         private DateTime _nextStatusUtc;
 
         public override void OnInitializeMelon()
         {
-            _nextSweepUtc = DateTime.UtcNow.AddSeconds(10);
             _nextStatusUtc = DateTime.UtcNow.AddMinutes(1);
 
-            MelonLogger.Msg("Loaded targeted storage-material lifetime patch for Schedule I 0.4.6f13.");
-            MelonLogger.Msg("Product visuals remain enabled; only runtime material instances created by WeedVisualsSetter are tracked.");
+            MelonLogger.Msg("Loaded storage material leak fix for Schedule I 0.4.6f13.");
+            MelonLogger.Msg("Weed appearances use non-instantiating shared material assignment; storage refresh behavior is unchanged.");
         }
 
         public override void OnUpdate()
         {
             DateTime now = DateTime.UtcNow;
 
-            if (now >= _nextSweepUtc)
-            {
-                _nextSweepUtc = now.AddSeconds(10);
-                MaterialLifetimeTracker.SweepDestroyedOwners();
-            }
-
             if (now >= _nextStatusUtc)
             {
                 _nextStatusUtc = now.AddMinutes(1);
-                MaterialLifetimeTracker.LogStatusIfActive();
+                PatchDiagnostics.LogStatus();
             }
-        }
-
-        public override void OnDeinitializeMelon()
-        {
-            MaterialLifetimeTracker.ReleaseAll("mod deinitialization");
         }
     }
 }
-
